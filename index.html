@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ColorBlox Gallery</title>
+  <script src="https://unpkg.com/web3@1.10.4/dist/web3.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    button, input {
+      margin: 10px;
+      padding: 8px;
+      font-size: 16px;
+    }
+    #gallery img, #searched-gallery img {
+      max-width: 100%;
+      height: auto;
+      margin: 10px;
+    }
+    #wallet-prompt {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    #gallery-container {
+      display: none; /* Hidden until wallet connected */
+    }
+    #profile-creation {
+      display: none; /* Shown if no username */
+      border: 1px solid #ccc;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 400px;
+    }
+    @media (max-width: 600px) {
+      button, input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="wallet-prompt">
+    <h2>Please connect your wallet</h2>
+    <button id="connectButton">Connect Wallet</button>
+  </div>
+  <div id="gallery-container">
+    <h1>Your Player Profile Images</h1>
+    <div>Wallet: <span id="wallet-address">Not connected</span></div>
+    <div>Username: <span id="user-username">Loading...</span></div>
+    <div id="profile-creation">
+      <h2>Create Your Player Account</h2>
+      <p>Enter a unique username for your profile. This will be searchable, like in a game.</p>
+      <input type="text" id="usernameInput" placeholder="Enter username (e.g., player123)">
+      <button id="checkAvailabilityButton">Check Availability</button>
+      <div id="availabilityStatus"></div>
+      <button id="registerUsernameButton" disabled>Register Username</button>
+    </div>
+    <div id="uploadSection">
+      <input type="file" id="imageInput" accept="image/*">
+      <button id="storeButton">Store Image on Blockchain</button>
+    </div>
+    <div id="gallery"></div>
+    <h2>Search Another Profile</h2>
+    <input type="text" id="searchInput" placeholder="Enter username or wallet address (0x...)">
+    <button id="searchButton">Search</button>
+    <div id="searched-gallery"></div>
+  </div>
+
+  <script>
+    // Check if Web3 loaded
+    if (!window.Web3) {
+      console.error('Web3 library not loaded');
+      alert('Failed to load Web3 library. Please refresh the page or disable ad-blockers.');
+    }
+
+    const contractAddress = '0xa6F5eC220b2837c289227A8fbB2fA71ba30c7ABF';
+    const abi = [
+      { "inputs": [ { "internalType": "string", "name": "_username", "type": "string" } ], "name": "registerUsername", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+      { "inputs": [ { "internalType": "string", "name": "_dataURI", "type": "string" } ], "name": "storeImage", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+      { "inputs": [ { "internalType": "string", "name": "_username", "type": "string" } ], "name": "getAddressByUsername", "outputs": [ { "internalType": "address", "name": "", "type": "address" } ], "stateMutability": "view", "type": "function" },
+      { "inputs": [ { "internalType": "address", "name": "_user", "type": "address" }, { "internalType": "uint256", "name": "index", "type": "uint256" } ], "name": "getImage", "outputs": [ { "internalType": "string", "name": "", "type": "string" } ], "stateMutability": "view", "type": "function" },
+      { "inputs": [ { "internalType": "address", "name": "_user", "type": "address" } ], "name": "getImageCount", "outputs": [ { "internalType": "uint256", "name": "", "type": "uint256" } ], "stateMutability": "view", "type": "function" },
+      { "inputs": [ { "internalType": "string", "name": "_username", "type": "string" } ], "name": "isUsernameAvailable", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "view", "type": "function" },
+      { "inputs": [ { "internalType": "address", "name": "", "type": "address" } ], "name": "ownerToUsername", "outputs": [ { "internalType": "string", "name": "", "type": "string" } ], "stateMutability": "view", "type": "function" },
+      { "inputs": [ { "internalType": "string", "name": "", "type": "string" } ], "name": "usernameToOwner", "outputs": [ { "internalType": "address", "name": "", "type": "address" } ], "stateMutability": "view", "type": "function" }
+    ];
+
+    // Mobile detection
+    function isMobile() {
+      return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    // Elements
+    const connectButton = document.getElementById('connectButton');
+    const walletPrompt = document.getElementById('wallet-prompt');
+    const galleryContainer = document.getElementById('gallery-container');
+    const walletAddressDisplay = document.getElementById('wallet-address');
+    const userUsernameDisplay = document.getElementById('user-username');
+    const profileCreation = document.getElementById('profile-creation');
+    const usernameInput = document.getElementById('usernameInput');
+    const checkAvailabilityButton = document.getElementById('checkAvailabilityButton');
+    const availabilityStatus = document.getElementById('availabilityStatus');
+    const registerUsernameButton = document.getElementById('registerUsernameButton');
+    const storeButton = document.getElementById('storeButton');
+    const imageInput = document.getElementById('imageInput');
+    const searchButton = document.getElementById('searchButton');
+    const searchInput = document.getElementById('searchInput');
+    let web3, contract, account;
+
+    connectButton.addEventListener('click', async () => {
+      try {
+        if (isMobile()) {
+          window.location.href = 'https://go.cb-w.com/dapp?cb_url=' + encodeURIComponent(window.location.href);
+          return;
+        }
+
+        if (!window.ethereum) {
+          throw new Error('No wallet provider detected. Install Coinbase Wallet.');
+        }
+
+        web3 = new Web3(window.ethereum);
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        account = accounts[0].toLowerCase();
+        walletAddressDisplay.textContent = account.slice(0, 6) + '...';
+        walletPrompt.style.display = 'none';
+        galleryContainer.style.display = 'block';
+
+        // Ensure Base Mainnet (chainId: 8453)
+        const chainId = await web3.eth.getChainId();
+        if (chainId !== 8453) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: '0x2135' }],
+            });
+          } catch (switchError) {
+            if (switchError.code === 4902) {
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: '0x2135',
+                  chainName: 'Base',
+                  rpcUrls: ['https://mainnet.base.org'],
+                  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                  blockExplorerUrls: ['https://basescan.org']
+                }],
+              });
+            } else {
+              throw switchError;
+            }
+          }
+        }
+
+        contract = new web3.eth.Contract(abi, contractAddress);
+        await loadUserUsername();
+        await fetchAndDisplayImages(account, 'gallery');
+      } catch (error) {
+        console.error('Wallet connection failed:', error.message);
+        alert(`Connection failed: ${error.message}`);
+      }
+    });
+
+    async function loadUserUsername() {
+      try {
+        const username = await contract.methods.ownerToUsername(account).call();
+        userUsernameDisplay.textContent = username || 'None';
+        if (!username) {
+          profileCreation.style.display = 'block';
+          document.getElementById('uploadSection').style.display = 'none'; // Hide upload until username set
+        } else {
+          profileCreation.style.display = 'none';
+          document.getElementById('uploadSection').style.display = 'block';
+        }
+      } catch (error) {
+        userUsernameDisplay.textContent = 'Error loading';
+        profileCreation.style.display = 'block';
+      }
+    }
+
+    checkAvailabilityButton.addEventListener('click', async () => {
+      try {
+        const username = usernameInput.value.trim().toLowerCase();
+        if (!username) return alert('Enter a username');
+        const available = await contract.methods.isUsernameAvailable(username).call();
+        availabilityStatus.textContent = available ? 'Available!' : 'Not available';
+        registerUsernameButton.disabled = !available;
+      } catch (error) {
+        alert(`Check failed: ${error.message}`);
+      }
+    });
+
+    registerUsernameButton.addEventListener('click', async () => {
+      try {
+        const username = usernameInput.value.trim().toLowerCase();
+        const tx = await contract.methods.registerUsername(username).send({ from: account });
+        alert(`Username registered! Tx: ${tx.transactionHash}`);
+        await loadUserUsername();
+        await fetchAndDisplayImages(account, 'gallery');
+      } catch (error) {
+        alert(`Registration failed: ${error.message}`);
+      }
+    });
+
+    storeButton.addEventListener('click', async () => {
+      try {
+        const file = imageInput.files[0];
+        if (!file) throw new Error('Select an image first');
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const dataURI = e.target.result;
+          const tx = await contract.methods.storeImage(dataURI).send({ from: account });
+          alert(`Image stored! Tx: ${tx.transactionHash}`);
+          await fetchAndDisplayImages(account, 'gallery');
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        alert(`Store failed: ${error.message}`);
+      }
+    });
+
+    async function fetchAndDisplayImages(userAddress, galleryId) {
+      try {
+        const gallery = document.getElementById(galleryId);
+        gallery.innerHTML = '';
+        const count = await contract.methods.getImageCount(userAddress).call();
+        for (let i = 0; i < count; i++) {
+          const image = await contract.methods.getImage(userAddress, i).call();
+          const imgElement = document.createElement('img');
+          imgElement.src = image;
+          imgElement.alt = `Image ${i}`;
+          imgElement.style.maxWidth = '100%';
+          imgElement.style.height = 'auto';
+          imgElement.style.margin = '10px';
+          gallery.appendChild(imgElement);
+        }
+      } catch (error) {
+        alert(`Fetch images failed: ${error.message}`);
+      }
+    }
+
+    searchButton.addEventListener('click', async () => {
+      try {
+        let searchTerm = searchInput.value.trim().toLowerCase();
+        if (!searchTerm) return alert('Enter a username or wallet address');
+        let targetAddress;
+        if (searchTerm.startsWith('0x') && searchTerm.length === 42) {
+          targetAddress = searchTerm;
+        } else {
+          targetAddress = await contract.methods.getAddressByUsername(searchTerm).call();
+          if (targetAddress === '0x0000000000000000000000000000000000000000') {
+            alert('Profile not found');
+            document.getElementById('searched-gallery').innerHTML = '';
+            return;
+          }
+        }
+        await fetchAndDisplayImages(targetAddress, 'searched-gallery');
+      } catch (error) {
+        alert(`Search failed: ${error.message}`);
+      }
+    });
+  </script>
+</body>
+</html>
