@@ -15,6 +15,20 @@
       min-height: 100vh;
       padding: 1rem;
       color: #1F2937;
+      overflow: hidden;
+      position: relative;
+    }
+    #background-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+    .content-overlay {
+      position: relative;
+      z-index: 1;
     }
     .glassmorphism {
       background: rgba(255, 255, 255, 0.9);
@@ -58,11 +72,10 @@
       object-fit: cover;
       border-radius: 0.25rem;
     }
-    .gradient-button {
-      background: linear-gradient(90deg, #EF4444, #3B82F6);
+    .solid-button {
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .gradient-button:hover {
+    .solid-button:hover {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
@@ -104,40 +117,155 @@
   </style>
 </head>
 <body class="antialiased">
-  <div id="wallet-prompt" class="glassmorphism p-8 max-w-md text-center">
-    <h2 class="text-2xl font-bold mb-4 section-title">Welcome to ColorBlox Gallery</h2>
-    <p class="text-gray-700 mb-6">Connect your wallet to dive into a world of red and blue cubes!</p>
-    <button id="connectButton" class="gradient-button text-white font-semibold py-2 px-6 rounded-lg">Connect Wallet</button>
-  </div>
-  <div id="gallery-container" class="mt-8">
-    <h1 class="text-4xl font-bold text-center mb-6 section-title">Your Player Profile Cubes</h1>
-    <div class="glassmorphism p-6 mb-6 rounded-lg">
-      <p class="text-lg"><span class="font-semibold">Wallet:</span> <span id="wallet-address" class="text-gray-600">Not connected</span></p>
-      <p class="text-lg"><span class="font-semibold">Username:</span> <span id="user-username" class="text-gray-600">Loading...</span></p>
+  <canvas id="background-canvas"></canvas>
+  <div class="content-overlay">
+    <div id="wallet-prompt" class="glassmorphism p-8 max-w-md text-center">
+      <h2 class="text-2xl font-bold mb-4 section-title">Welcome to ColorBlox Gallery</h2>
+      <p class="text-gray-700 mb-6">Connect your wallet to dive into a world of falling cubes!</p>
+      <button id="connectButton" class="solid-button bg-green-500 text-white font-semibold py-2 px-6 rounded-lg">Connect Wallet</button>
     </div>
-    <div id="profile-creation" class="glassmorphism p-6 mb-6 max-w-md mx-auto">
-      <h2 class="text-xl font-semibold mb-4 section-title">Create Your Player Profile</h2>
-      <p class="text-gray-600 mb-4">Pick a unique username to stack your cubes!</p>
-      <input type="text" id="usernameInput" placeholder="Enter username (e.g., player123)" class="input-field w-full p-2 rounded-lg mb-4">
-      <button id="checkAvailabilityButton" class="gradient-button text-white font-semibold py-2 px-4 rounded-lg w-full mb-2">Check Availability</button>
-      <div id="availabilityStatus" class="text-gray-600 mb-4"></div>
-      <button id="registerUsernameButton" disabled class="gradient-button text-white font-semibold py-2 px-4 rounded-lg w-full opacity-50 cursor-not-allowed">Register Username</button>
+    <div id="gallery-container" class="mt-8">
+      <h1 class="text-4xl font-bold text-center mb-6 section-title">Your Player Profile Cubes</h1>
+      <div class="glassmorphism p-6 mb-6 rounded-lg">
+        <p class="text-lg"><span class="font-semibold">Wallet:</span> <span id="wallet-address" class="text-gray-600">Not connected</span></p>
+        <p class="text-lg"><span class="font-semibold">Username:</span> <span id="user-username" class="text-gray-600">Loading...</span></p>
+      </div>
+      <div id="profile-creation" class="glassmorphism p-6 mb-6 max-w-md mx-auto">
+        <h2 class="text-xl font-semibold mb-4 section-title">Create Your Player Profile</h2>
+        <p class="text-gray-600 mb-4">Pick a unique username to stack your cubes!</p>
+        <input type="text" id="usernameInput" placeholder="Enter username (e.g., player123)" class="input-field w-full p-2 rounded-lg mb-4">
+        <button id="checkAvailabilityButton" class="solid-button bg-red-500 text-white font-semibold py-2 px-4 rounded-lg w-full mb-2">Check Availability</button>
+        <div id="availabilityStatus" class="text-gray-600 mb-4"></div>
+        <button id="registerUsernameButton" disabled class="solid-button bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg w-full opacity-50 cursor-not-allowed">Register Username</button>
+      </div>
+      <div id="uploadSection" class="glassmorphism p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4 section-title">Add a Cube to Your Stack</h2>
+        <input type="file" id="imageInput" accept="image/*" class="input-field w-full p-2 rounded-lg mb-4">
+        <button id="storeButton" class="solid-button bg-red-500 text-white font-semibold py-2 px-4 rounded-lg w-full">Store Cube on Blockchain</button>
+      </div>
+      <div id="gallery" class="gallery-grid"></div>
+      <h2 class="text-2xl font-semibold text-center mb-4 section-title">Explore Other Cube Stacks</h2>
+      <div class="glassmorphism p-6 mb-6 max-w-md mx-auto">
+        <input type="text" id="searchInput" placeholder="Enter username or wallet address (0x...)" class="input-field w-full p-2 rounded-lg mb-4">
+        <button id="searchButton" class="solid-button bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg w-full">Search</button>
+      </div>
+      <div id="searched-gallery" class="gallery-grid"></div>
     </div>
-    <div id="uploadSection" class="glassmorphism p-6 mb-6">
-      <h2 class="text-xl font-semibold mb-4 section-title">Add a Cube to Your Stack</h2>
-      <input type="file" id="imageInput" accept="image/*" class="input-field w-full p-2 rounded-lg mb-4">
-      <button id="storeButton" class="gradient-button text-white font-semibold py-2 px-4 rounded-lg w-full">Store Cube on Blockchain</button>
-    </div>
-    <div id="gallery" class="gallery-grid"></div>
-    <h2 class="text-2xl font-semibold text-center mb-4 section-title">Explore Other Cube Stacks</h2>
-    <div class="glassmorphism p-6 mb-6 max-w-md mx-auto">
-      <input type="text" id="searchInput" placeholder="Enter username or wallet address (0x...)" class="input-field w-full p-2 rounded-lg mb-4">
-      <button id="searchButton" class="gradient-button text-white font-semibold py-2 px-4 rounded-lg w-full">Search</button>
-    </div>
-    <div id="searched-gallery" class="gallery-grid"></div>
   </div>
 
   <script>
+    // Background Tetris-like animation
+    const canvas = document.getElementById('background-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const squares = [];
+    const landedSquares = [];
+    const squareSize = 20;
+    const floorY = canvas.height - 50; // Floor position
+
+    const colors = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981'];
+
+    // Tetris shapes (relative positions for 4 squares)
+    const tetrisShapes = {
+      I: [[0, 0], [1, 0], [2, 0], [3, 0]],
+      O: [[0, 0], [1, 0], [0, 1], [1, 1]],
+      T: [[0, 0], [1, 0], [2, 0], [1, 1]],
+      S: [[0, 1], [1, 1], [1, 0], [2, 0]],
+      Z: [[0, 0], [1, 0], [1, 1], [2, 1]],
+      J: [[0, 0], [0, 1], [1, 0], [2, 0]],
+      L: [[0, 0], [1, 0], [2, 0], [2, 1]]
+    };
+
+    function createSquare() {
+      if (Math.random() < 0.7) {
+        // Single square
+        const x = Math.random() * (canvas.width - squareSize);
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        squares.push({
+          x: x,
+          y: -squareSize,
+          speed: Math.random() * 2 + 1,
+          color: color,
+          width: squareSize,
+          height: squareSize
+        });
+      } else {
+        // Tetris shape
+        const shapeKeys = Object.keys(tetrisShapes);
+        const shape = tetrisShapes[shapeKeys[Math.floor(Math.random() * shapeKeys.length)]];
+        const baseX = Math.random() * (canvas.width - squareSize * 4);
+        const baseY = -squareSize;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const rotation = Math.floor(Math.random() * 4); // 0 to 3 rotations (90 degrees each)
+        for (let i = 0; i < 4; i++) {
+          let [dx, dy] = shape[i];
+          // Apply rotation
+          for (let r = 0; r < rotation; r++) {
+            [dx, dy] = [dy, -dx];
+          }
+          squares.push({
+            x: baseX + dx * squareSize,
+            y: baseY + dy * squareSize,
+            speed: Math.random() * 2 + 1,
+            color: color,
+            width: squareSize,
+            height: squareSize,
+            group: squares.length // Group ID for Tetris shape
+          });
+        }
+      }
+    }
+
+    function checkCollision(square) {
+      for (let landed of landedSquares) {
+        if (square.x < landed.x + landed.width &&
+            square.x + square.width > landed.x &&
+            square.y < landed.y + landed.height &&
+            square.y + square.height > landed.y) {
+          return true;
+        }
+      }
+      return square.y + square.height >= floorY;
+    }
+
+    function animateSquares() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Draw floor
+      ctx.fillStyle = '#4B5563';
+      ctx.fillRect(0, floorY, canvas.width, 2);
+
+      if (Math.random() < 0.02) createSquare(); // 2% chance per frame to spawn a new square or shape
+
+      for (let i = squares.length - 1; i >= 0; i--) {
+        let square = squares[i];
+        square.y += square.speed;
+        ctx.fillStyle = square.color;
+        ctx.fillRect(square.x, square.y, squareSize, squareSize);
+
+        if (checkCollision(square)) {
+          landedSquares.push({ ...square, y: Math.min(square.y, floorY - square.height) });
+          squares.splice(i, 1);
+        }
+      }
+
+      // Draw landed squares
+      for (let landed of landedSquares) {
+        ctx.fillStyle = landed.color;
+        ctx.fillRect(landed.x, landed.y, squareSize, squareSize);
+      }
+
+      requestAnimationFrame(animateSquares);
+    }
+    animateSquares();
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      floorY = canvas.height - 50; // Update floor position on resize
+    });
+
     // Check if Web3 loaded
     if (!window.Web3) {
       console.error('Web3 library not loaded');
