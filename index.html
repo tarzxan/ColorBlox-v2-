@@ -5,76 +5,267 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ColorBlox Gallery</title>
   <script src="https://unpkg.com/web3@1.10.4/dist/web3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
+      font-family: 'Poppins', sans-serif;
+      background: #FFFFFF;
+      min-height: 100vh;
+      padding: 1rem;
+      color: #1F2937;
+      overflow: hidden;
+      position: relative;
     }
-    button, input {
-      margin: 10px;
-      padding: 8px;
-      font-size: 16px;
+    #background-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
     }
-    #gallery img, #searched-gallery img {
-      max-width: 100%;
-      height: auto;
-      margin: 10px;
+    .content-overlay {
+      position: relative;
+      z-index: 1;
+    }
+    .glassmorphism {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1.5rem;
+      padding: 1rem;
+    }
+    .cube-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      perspective: 1000px;
+      transform-style: preserve-3d;
+    }
+    .cube {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      border-radius: 0.5rem;
+      overflow: hidden;
+    }
+    .cube.red {
+      border: 4px solid #EF4444;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+    }
+    .cube.blue {
+      border: 4px solid #3B82F6;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+    }
+    .cube img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 0.25rem;
+    }
+    .solid-button {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .solid-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    .input-field {
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      color: #1F2937;
+      transition: border-color 0.3s ease;
+    }
+    .input-field:focus {
+      border-color: #3B82F6;
+      outline: none;
+    }
+    .section-title {
+      background: linear-gradient(90deg, #EF4444, #3B82F6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
     #wallet-prompt {
-      position: absolute;
+      position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      text-align: center;
+      z-index: 10;
     }
     #gallery-container {
-      display: none; /* Hidden until wallet connected */
-    }
-    #profile-creation {
-      display: none; /* Shown if no username */
-      border: 1px solid #ccc;
-      padding: 20px;
-      margin: 20px auto;
-      max-width: 400px;
+      display: none;
+      max-width: 1200px;
+      margin: 0 auto;
     }
     @media (max-width: 600px) {
-      button, input {
-        width: 100%;
-        box-sizing: border-box;
+      .gallery-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      }
+      .cube-container {
+        aspect-ratio: 1;
       }
     }
   </style>
 </head>
-<body>
-  <div id="wallet-prompt">
-    <h2>Please connect your wallet</h2>
-    <button id="connectButton">Connect Wallet</button>
-  </div>
-  <div id="gallery-container">
-    <h1>Your Player Profile Images</h1>
-    <div>Wallet: <span id="wallet-address">Not connected</span></div>
-    <div>Username: <span id="user-username">Loading...</span></div>
-    <div id="profile-creation">
-      <h2>Create Your Player Account</h2>
-      <p>Enter a unique username for your profile. This will be searchable, like in a game.</p>
-      <input type="text" id="usernameInput" placeholder="Enter username (e.g., player123)">
-      <button id="checkAvailabilityButton">Check Availability</button>
-      <div id="availabilityStatus"></div>
-      <button id="registerUsernameButton" disabled>Register Username</button>
+<body class="antialiased">
+  <canvas id="background-canvas"></canvas>
+  <div class="content-overlay">
+    <div id="wallet-prompt" class="glassmorphism p-8 max-w-md text-center">
+      <h2 class="text-2xl font-bold mb-4 section-title">Welcome to ColorBlox Gallery</h2>
+      <p class="text-gray-700 mb-6">Connect your wallet to dive into a world of falling cubes!</p>
+      <button id="connectButton" class="solid-button bg-green-500 text-white font-semibold py-2 px-6 rounded-lg">Connect Wallet</button>
     </div>
-    <div id="uploadSection">
-      <input type="file" id="imageInput" accept="image/*">
-      <button id="storeButton">Store Image on Blockchain</button>
+    <div id="gallery-container" class="mt-8">
+      <h1 class="text-4xl font-bold text-center mb-6 section-title">Your Player Profile Cubes</h1>
+      <div class="glassmorphism p-6 mb-6 rounded-lg">
+        <p class="text-lg"><span class="font-semibold">Wallet:</span> <span id="wallet-address" class="text-gray-600">Not connected</span></p>
+        <p class="text-lg"><span class="font-semibold">Username:</span> <span id="user-username" class="text-gray-600">Loading...</span></p>
+      </div>
+      <div id="profile-creation" class="glassmorphism p-6 mb-6 max-w-md mx-auto">
+        <h2 class="text-xl font-semibold mb-4 section-title">Create Your Player Profile</h2>
+        <p class="text-gray-600 mb-4">Pick a unique username to stack your cubes!</p>
+        <input type="text" id="usernameInput" placeholder="Enter username (e.g., player123)" class="input-field w-full p-2 rounded-lg mb-4">
+        <button id="checkAvailabilityButton" class="solid-button bg-red-500 text-white font-semibold py-2 px-4 rounded-lg w-full mb-2">Check Availability</button>
+        <div id="availabilityStatus" class="text-gray-600 mb-4"></div>
+        <button id="registerUsernameButton" disabled class="solid-button bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg w-full opacity-50 cursor-not-allowed">Register Username</button>
+      </div>
+      <div id="uploadSection" class="glassmorphism p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4 section-title">Add a Cube to Your Stack</h2>
+        <input type="file" id="imageInput" accept="image/*" class="input-field w-full p-2 rounded-lg mb-4">
+        <button id="storeButton" class="solid-button bg-red-500 text-white font-semibold py-2 px-4 rounded-lg w-full">Store Cube on Blockchain</button>
+      </div>
+      <div id="gallery" class="gallery-grid"></div>
+      <h2 class="text-2xl font-semibold text-center mb-4 section-title">Explore Other Cube Stacks</h2>
+      <div class="glassmorphism p-6 mb-6 max-w-md mx-auto">
+        <input type="text" id="searchInput" placeholder="Enter username or wallet address (0x...)" class="input-field w-full p-2 rounded-lg mb-4">
+        <button id="searchButton" class="solid-button bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg w-full">Search</button>
+      </div>
+      <div id="searched-gallery" class="gallery-grid"></div>
     </div>
-    <div id="gallery"></div>
-    <h2>Search Another Profile</h2>
-    <input type="text" id="searchInput" placeholder="Enter username or wallet address (0x...)">
-    <button id="searchButton">Search</button>
-    <div id="searched-gallery"></div>
   </div>
 
   <script>
+    // Background Tetris-like animation
+    const canvas = document.getElementById('background-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const squares = [];
+    const landedSquares = [];
+    const squareSize = 20;
+    const floorY = canvas.height - 50; // Floor position
+
+    const colors = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981'];
+
+    // Tetris shapes (relative positions for 4 squares)
+    const tetrisShapes = {
+      I: [[0, 0], [1, 0], [2, 0], [3, 0]],
+      O: [[0, 0], [1, 0], [0, 1], [1, 1]],
+      T: [[0, 0], [1, 0], [2, 0], [1, 1]],
+      S: [[0, 1], [1, 1], [1, 0], [2, 0]],
+      Z: [[0, 0], [1, 0], [1, 1], [2, 1]],
+      J: [[0, 0], [0, 1], [1, 0], [2, 0]],
+      L: [[0, 0], [1, 0], [2, 0], [2, 1]]
+    };
+
+    function createSquare() {
+      if (Math.random() < 0.7) {
+        // Single square
+        const x = Math.random() * (canvas.width - squareSize);
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        squares.push({
+          x: x,
+          y: -squareSize,
+          speed: Math.random() * 2 + 1,
+          color: color,
+          width: squareSize,
+          height: squareSize
+        });
+      } else {
+        // Tetris shape
+        const shapeKeys = Object.keys(tetrisShapes);
+        const shape = tetrisShapes[shapeKeys[Math.floor(Math.random() * shapeKeys.length)]];
+        const baseX = Math.random() * (canvas.width - squareSize * 4);
+        const baseY = -squareSize;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const rotation = Math.floor(Math.random() * 4); // 0 to 3 rotations (90 degrees each)
+        for (let i = 0; i < 4; i++) {
+          let [dx, dy] = shape[i];
+          // Apply rotation
+          for (let r = 0; r < rotation; r++) {
+            [dx, dy] = [dy, -dx];
+          }
+          squares.push({
+            x: baseX + dx * squareSize,
+            y: baseY + dy * squareSize,
+            speed: Math.random() * 2 + 1,
+            color: color,
+            width: squareSize,
+            height: squareSize,
+            group: squares.length // Group ID for Tetris shape
+          });
+        }
+      }
+    }
+
+    function checkCollision(square) {
+      for (let landed of landedSquares) {
+        if (square.x < landed.x + landed.width &&
+            square.x + square.width > landed.x &&
+            square.y < landed.y + landed.height &&
+            square.y + square.height > landed.y) {
+          return true;
+        }
+      }
+      return square.y + square.height >= floorY;
+    }
+
+    function animateSquares() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Draw floor
+      ctx.fillStyle = '#4B5563';
+      ctx.fillRect(0, floorY, canvas.width, 2);
+
+      if (Math.random() < 0.02) createSquare(); // 2% chance per frame to spawn a new square or shape
+
+      for (let i = squares.length - 1; i >= 0; i--) {
+        let square = squares[i];
+        square.y += square.speed;
+        ctx.fillStyle = square.color;
+        ctx.fillRect(square.x, square.y, squareSize, squareSize);
+
+        if (checkCollision(square)) {
+          landedSquares.push({ ...square, y: Math.min(square.y, floorY - square.height) });
+          squares.splice(i, 1);
+        }
+      }
+
+      // Draw landed squares
+      for (let landed of landedSquares) {
+        ctx.fillStyle = landed.color;
+        ctx.fillRect(landed.x, landed.y, squareSize, squareSize);
+      }
+
+      requestAnimationFrame(animateSquares);
+    }
+    animateSquares();
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      floorY = canvas.height - 50; // Update floor position on resize
+    });
+
     // Check if Web3 loaded
     if (!window.Web3) {
       console.error('Web3 library not loaded');
@@ -174,7 +365,7 @@
         userUsernameDisplay.textContent = username || 'None';
         if (!username) {
           profileCreation.style.display = 'block';
-          document.getElementById('uploadSection').style.display = 'none'; // Hide upload until username set
+          document.getElementById('uploadSection').style.display = 'none';
         } else {
           profileCreation.style.display = 'none';
           document.getElementById('uploadSection').style.display = 'block';
@@ -191,7 +382,10 @@
         if (!username) return alert('Enter a username');
         const available = await contract.methods.isUsernameAvailable(username).call();
         availabilityStatus.textContent = available ? 'Available!' : 'Not available';
+        availabilityStatus.className = available ? 'text-green-500' : 'text-red-500';
         registerUsernameButton.disabled = !available;
+        registerUsernameButton.classList.toggle('opacity-50', !available);
+        registerUsernameButton.classList.toggle('cursor-not-allowed', !available);
       } catch (error) {
         alert(`Check failed: ${error.message}`);
       }
@@ -233,13 +427,39 @@
         const count = await contract.methods.getImageCount(userAddress).call();
         for (let i = 0; i < count; i++) {
           const image = await contract.methods.getImage(userAddress, i).call();
+          const cubeContainer = document.createElement('div');
+          cubeContainer.className = 'cube-container';
+          const cube = document.createElement('div');
+          cube.className = `cube ${i % 2 === 0 ? 'red' : 'blue'}`;
           const imgElement = document.createElement('img');
           imgElement.src = image;
           imgElement.alt = `Image ${i}`;
-          imgElement.style.maxWidth = '100%';
-          imgElement.style.height = 'auto';
-          imgElement.style.margin = '10px';
-          gallery.appendChild(imgElement);
+          cube.appendChild(imgElement);
+          cubeContainer.appendChild(cube);
+          gallery.appendChild(cubeContainer);
+
+          // GSAP animation: Fall and stack
+          gsap.fromTo(
+            cubeContainer,
+            { y: -300, opacity: 0, rotationX: 30, rotationY: 30 },
+            {
+              y: 0,
+              opacity: 1,
+              rotationX: 0,
+              rotationY: 0,
+              duration: 0.8,
+              delay: i * 0.2,
+              ease: 'back.out(1.4)',
+              onComplete: () => {
+                gsap.to(cube, {
+                  rotationX: 0,
+                  rotationY: 0,
+                  duration: 0.3,
+                  ease: 'power1.inOut'
+                });
+              }
+            }
+          );
         }
       } catch (error) {
         alert(`Fetch images failed: ${error.message}`);
